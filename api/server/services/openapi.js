@@ -30,43 +30,68 @@ const apiTags = [
   { name: 'system', description: 'System health and metadata endpoints.' },
 ];
 
-const basePaths = [
-  { path: '/health', method: 'get', summary: 'Health check', tags: ['system'] },
-];
+const defaultPathSummary = (method, pathName) => `${method.toUpperCase()} ${pathName}`;
 
-const buildPaths = () =>
-  basePaths.reduce((paths, entry) => {
-    const { path: routePath, method, summary, tags } = entry;
-    return {
-      ...paths,
-      [routePath]: {
-        ...(paths[routePath] || {}),
+const buildPaths = (endpoints) =>
+  endpoints.reduce((paths, endpoint) => {
+    const { path: routePath, methods } = endpoint;
+    const normalizedPath = routePath.replace(/\/:([A-Za-z0-9_]+)/g, '/{$1}');
+    const methodsLower = methods.map((method) => method.toLowerCase());
+
+    const methodSpecs = methodsLower.reduce((methodMap, method) => {
+      const shouldSkip = method === 'options' || method === 'head';
+      if (shouldSkip) {
+        return methodMap;
+      }
+
+      return {
+        ...methodMap,
         [method]: {
-          summary,
-          tags,
+          summary: defaultPathSummary(method, normalizedPath),
           responses: {
             200: {
               description: 'OK',
             },
           },
+          security: [{ bearerAuth: [] }],
         },
+      };
+    }, {});
+
+    if (Object.keys(methodSpecs).length === 0) {
+      return paths;
+    }
+
+    return {
+      ...paths,
+      [normalizedPath]: {
+        ...(paths[normalizedPath] || {}),
+        ...methodSpecs,
       },
     };
   }, {});
 
-const buildOpenApiSpec = (serverUrl) => ({
+const buildOpenApiSpec = ({ serverUrl, endpoints }) => ({
   openapi: '3.0.3',
   info: {
     title: 'LibreChat API',
     version: packageJson.version,
     description:
-      'This OpenAPI document provides a starting point for LibreChat API documentation. ' +
-      'Only a limited set of endpoints are described today; extend with route-level annotations ' +
-      'or expand the spec to document additional paths.',
+      'Auto-generated OpenAPI document derived from the Express route table. ' +
+      'Operation details should be refined with route-level annotations over time.',
   },
   servers: serverUrl ? [{ url: serverUrl }] : undefined,
   tags: apiTags,
-  paths: buildPaths(),
+  components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+    },
+  },
+  paths: buildPaths(endpoints),
 });
 
 module.exports = { buildOpenApiSpec };

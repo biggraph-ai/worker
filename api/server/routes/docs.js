@@ -1,12 +1,18 @@
 const express = require('express');
+const listEndpoints = require('express-list-endpoints');
 const swaggerUi = require('swagger-ui-express');
 const { buildOpenApiSpec } = require('../services/openapi');
 
 const router = express.Router();
 
-router.get('/openapi.json', (req, res) => {
+const buildSpec = (req) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
-  res.json(buildOpenApiSpec(baseUrl));
+  const endpoints = listEndpoints(req.app);
+  return buildOpenApiSpec({ serverUrl: baseUrl, endpoints });
+};
+
+router.get('/openapi.json', (req, res) => {
+  res.json(buildSpec(req));
 });
 
 router.use(
