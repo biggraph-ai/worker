@@ -89,6 +89,65 @@ const mergePaths = (basePaths, annotatedPaths) => {
   }, { ...basePaths });
 };
 
+const bodyMethods = new Set(['post', 'put', 'patch', 'delete']);
+
+const buildFallbackSchema = (description) => ({
+  type: 'object',
+  description,
+  additionalProperties: true,
+});
+
+const applyFallbackSchemas = (paths) =>
+  Object.entries(paths).reduce((updatedPaths, [routePath, operations]) => {
+    const updatedOperations = Object.entries(operations).reduce((methodMap, [method, operation]) => {
+      const operationSpec = { ...operation };
+
+      if (bodyMethods.has(method) && !operationSpec.requestBody) {
+        operationSpec.requestBody = {
+          required: false,
+          content: {
+            'application/json': {
+              schema: buildFallbackSchema('Inferred request schema placeholder.'),
+            },
+          },
+        };
+      }
+
+      const responses = operationSpec.responses ?? {};
+      const updatedResponses = Object.entries(responses).reduce(
+        (responseMap, [statusCode, response]) => {
+          const responseSpec = { ...response };
+          if (!responseSpec.content) {
+            responseSpec.content = {
+              'application/json': {
+                schema: buildFallbackSchema('Inferred response schema placeholder.'),
+              },
+            };
+          }
+
+          return {
+            ...responseMap,
+            [statusCode]: responseSpec,
+          };
+        },
+        {},
+      );
+
+      return {
+        ...methodMap,
+        [method]: {
+          ...operationSpec,
+          responses: updatedResponses,
+        },
+      };
+    }, {});
+
+    return {
+      ...updatedPaths,
+      [routePath]: updatedOperations,
+    };
+  }, {});
+
 const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
   const annotatedSpec = swaggerJSDoc({
     definition: {
@@ -102,6 +161,7 @@ const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
 
   const basePaths = buildPaths(endpoints);
   const mergedPaths = mergePaths(basePaths, annotatedSpec.paths);
+  const enrichedPaths = applyFallbackSchemas(mergedPaths);
   const annotatedSchemas = annotatedSpec.components?.schemas ?? {};
 
   return {
@@ -125,7 +185,7 @@ const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
       },
       schemas: annotatedSchemas,
     },
-    paths: mergedPaths,
+    paths: enrichedPaths,
   };
 };
 
