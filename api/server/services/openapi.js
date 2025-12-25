@@ -32,8 +32,34 @@ const apiTags = [
 
 const defaultPathSummary = (method, pathName) => `${method.toUpperCase()} ${pathName}`;
 
+const normalizeEndpoints = (endpoints) => {
+  if (!Array.isArray(endpoints)) {
+    return [];
+  }
+
+  return endpoints.flatMap((endpoint) => {
+    if (!endpoint) {
+      return [];
+    }
+
+    const rawPaths = Array.isArray(endpoint.path) ? endpoint.path : [endpoint.path];
+    const methods = Array.isArray(endpoint.methods)
+      ? endpoint.methods
+      : endpoint.methods && typeof endpoint.methods === 'object'
+        ? Object.keys(endpoint.methods)
+        : [];
+
+    return rawPaths
+      .filter((routePath) => typeof routePath === 'string')
+      .map((routePath) => ({
+        path: routePath,
+        methods,
+      }));
+  });
+};
+
 const buildPaths = (endpoints) =>
-  endpoints.reduce((paths, endpoint) => {
+  normalizeEndpoints(endpoints).reduce((paths, endpoint) => {
     const { path: routePath, methods } = endpoint;
     const normalizedPath = routePath.replace(/\/:([A-Za-z0-9_]+)/g, '/{$1}');
     const methodsLower = methods.map((method) => method.toLowerCase());
