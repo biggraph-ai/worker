@@ -1,4 +1,46 @@
 const express = require('express');
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     LoginRequest:
+ *       type: object
+ *       required: [email, password]
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *         password:
+ *           type: string
+ *           format: password
+ *     LoginResponse:
+ *       type: object
+ *       properties:
+ *         token:
+ *           type: string
+ *         user:
+ *           type: object
+ *           additionalProperties: true
+ *     RegisterRequest:
+ *       type: object
+ *       required: [email, password, name, username]
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *         password:
+ *           type: string
+ *           format: password
+ *         name:
+ *           type: string
+ *         username:
+ *           type: string
+ *     RegisterResponse:
+ *       type: object
+ *       properties:
+ *         message:
+ *           type: string
+ */
 const { createSetBalanceConfig } = require('@librechat/api');
 const {
   resetPasswordRequestController,
@@ -31,6 +73,28 @@ const router = express.Router();
 const ldapAuth = !!process.env.LDAP_URL && !!process.env.LDAP_USER_SEARCH_BASE;
 //Local
 router.post('/logout', middleware.requireJwtAuth, logoutController);
+/**
+ * @openapi
+ * /api/auth/login:
+ *   post:
+ *     tags: [auth]
+ *     summary: Login with email and password.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *     responses:
+ *       200:
+ *         description: Login succeeded.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         description: Invalid credentials.
+ */
 router.post(
   '/login',
   middleware.logHeaders,
@@ -41,6 +105,28 @@ router.post(
   loginController,
 );
 router.post('/refresh', refreshController);
+/**
+ * @openapi
+ * /api/auth/register:
+ *   post:
+ *     tags: [auth]
+ *     summary: Register a new user.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RegisterRequest'
+ *     responses:
+ *       200:
+ *         description: Registration accepted.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RegisterResponse'
+ *       403:
+ *         description: Registration forbidden.
+ */
 router.post(
   '/register',
   middleware.registerLimiter,

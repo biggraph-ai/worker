@@ -22,11 +22,13 @@ const share = require('./share');
 const tags = require('./tags');
 const auth = require('./auth');
 const keys = require('./keys');
+const docs = require('./docs');
 const user = require('./user');
 const mcp = require('./mcp');
 
 module.exports = {
   mcp,
+  docs,
   auth,
   keys,
   user,
