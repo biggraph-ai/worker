@@ -1,4 +1,5 @@
 const path = require('path');
+const swaggerJSDoc = require('swagger-jsdoc');
 
 const packageJson = require(path.resolve(__dirname, '..', '..', 'package.json'));
 
@@ -97,27 +98,89 @@ const buildPaths = (endpoints) =>
     };
   }, {});
 
-const buildOpenApiSpec = ({ serverUrl, endpoints }) => ({
-  openapi: '3.0.3',
-  info: {
-    title: 'LibreChat API',
-    version: packageJson.version,
-    description:
-      'Auto-generated OpenAPI document derived from the Express route table. ' +
-      'Operation details should be refined with route-level annotations over time.',
-  },
-  servers: serverUrl ? [{ url: serverUrl }] : undefined,
-  tags: apiTags,
-  components: {
-    securitySchemes: {
-      bearerAuth: {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
+const mergePathSpecs = (basePaths = {}, jsdocPaths = {}) => {
+  const mergedPaths = { ...basePaths };
+
+  Object.entries(jsdocPaths).forEach(([pathName, jsdocPathSpec]) => {
+    const basePathSpec = mergedPaths[pathName] || {};
+    mergedPaths[pathName] = {
+      ...basePathSpec,
+      ...jsdocPathSpec,
+    };
+  });
+
+  return mergedPaths;
+};
+
+const buildJSDocSpec = ({ serverUrl }) =>
+  swaggerJSDoc({
+    definition: {
+      openapi: '3.0.3',
+      info: {
+        title: 'LibreChat API',
+        version: packageJson.version,
+        description:
+          'Auto-generated OpenAPI document derived from the Express route table. ' +
+          'Operation details should be refined with route-level annotations over time.',
+      },
+      servers: serverUrl ? [{ url: serverUrl }] : undefined,
+      tags: apiTags,
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+          },
+        },
       },
     },
-  },
-  paths: buildPaths(endpoints),
-});
+    apis: [path.resolve(__dirname, '..', 'routes', '**', '*.js')],
+  });
+
+const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
+  const baseSpec = {
+    openapi: '3.0.3',
+    info: {
+      title: 'LibreChat API',
+      version: packageJson.version,
+      description:
+        'Auto-generated OpenAPI document derived from the Express route table. ' +
+        'Operation details should be refined with route-level annotations over time.',
+    },
+    servers: serverUrl ? [{ url: serverUrl }] : undefined,
+    tags: apiTags,
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+    paths: buildPaths(endpoints),
+  };
+
+  const jsdocSpec = buildJSDocSpec({ serverUrl });
+
+  return {
+    ...baseSpec,
+    ...jsdocSpec,
+    components: {
+      ...baseSpec.components,
+      ...jsdocSpec.components,
+      schemas: {
+        ...(baseSpec.components?.schemas || {}),
+        ...(jsdocSpec.components?.schemas || {}),
+      },
+      securitySchemes: {
+        ...(baseSpec.components?.securitySchemes || {}),
+        ...(jsdocSpec.components?.securitySchemes || {}),
+      },
+    },
+    paths: mergePathSpecs(baseSpec.paths, jsdocSpec.paths || {}),
+  };
+};
 
 module.exports = { buildOpenApiSpec };
