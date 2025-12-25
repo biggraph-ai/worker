@@ -5,23 +5,9 @@ const { buildOpenApiSpec } = require('../services/openapi');
 
 const router = express.Router();
 
-const getEndpoints = (app) => {
-  const appEndpoints = listEndpoints(app);
-  if (appEndpoints.length > 0) {
-    return appEndpoints;
-  }
-
-  if (app?.router) {
-    return listEndpoints(app.router);
-  }
-
-  return appEndpoints;
-};
-
 const buildSpec = (req) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
-  const endpoints = getEndpoints(req.app);
-  console.log('[openapi] endpoints', endpoints);
+  const endpoints = listEndpoints(req.app);
   return buildOpenApiSpec({ serverUrl: baseUrl, endpoints });
 };
 

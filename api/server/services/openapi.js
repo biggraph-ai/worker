@@ -33,34 +33,8 @@ const apiTags = [
 
 const defaultPathSummary = (method, pathName) => `${method.toUpperCase()} ${pathName}`;
 
-const normalizeEndpoints = (endpoints) => {
-  if (!Array.isArray(endpoints)) {
-    return [];
-  }
-
-  return endpoints.flatMap((endpoint) => {
-    if (!endpoint) {
-      return [];
-    }
-
-    const rawPaths = Array.isArray(endpoint.path) ? endpoint.path : [endpoint.path];
-    const methods = Array.isArray(endpoint.methods)
-      ? endpoint.methods
-      : endpoint.methods && typeof endpoint.methods === 'object'
-        ? Object.keys(endpoint.methods)
-        : [];
-
-    return rawPaths
-      .filter((routePath) => typeof routePath === 'string')
-      .map((routePath) => ({
-        path: routePath,
-        methods,
-      }));
-  });
-};
-
 const buildPaths = (endpoints) =>
-  normalizeEndpoints(endpoints).reduce((paths, endpoint) => {
+  endpoints.reduce((paths, endpoint) => {
     const { path: routePath, methods } = endpoint;
     const normalizedPath = routePath.replace(/\/:([A-Za-z0-9_]+)/g, '/{$1}');
     const methodsLower = methods.map((method) => method.toLowerCase());
@@ -80,7 +54,7 @@ const buildPaths = (endpoints) =>
               description: 'OK',
             },
           },
-          security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+          security: [{ bearerAuth: [] }],
         },
       };
     }, {});
@@ -98,60 +72,46 @@ const buildPaths = (endpoints) =>
     };
   }, {});
 
-const mergePathSpecs = (basePaths = {}, jsdocPaths = {}) => {
-  const mergedPaths = { ...basePaths };
+const mergePaths = (basePaths, annotatedPaths) => {
+  if (!annotatedPaths) {
+    return basePaths;
+  }
 
-  Object.entries(jsdocPaths).forEach(([pathName, jsdocPathSpec]) => {
-    const basePathSpec = mergedPaths[pathName] || {};
-    mergedPaths[pathName] = {
-      ...basePathSpec,
-      ...jsdocPathSpec,
+  return Object.entries(annotatedPaths).reduce((paths, [routePath, operations]) => {
+    const existing = paths[routePath] || {};
+    return {
+      ...paths,
+      [routePath]: {
+        ...existing,
+        ...operations,
+      },
     };
-  });
-
-  return mergedPaths;
+  }, { ...basePaths });
 };
 
-const buildJSDocSpec = ({ serverUrl }) =>
-  swaggerJSDoc({
+const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
+  const annotatedSpec = swaggerJSDoc({
     definition: {
       openapi: '3.0.3',
-      info: {
-        title: 'LibreChat API',
-        version: packageJson.version,
-        description:
-          'Auto-generated OpenAPI document derived from the Express route table. ' +
-          'Operation details should be refined with route-level annotations over time.',
-      },
-      servers: serverUrl ? [{ url: serverUrl }] : undefined,
-      tags: apiTags,
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-          },
-          cookieAuth: {
-            type: 'apiKey',
-            in: 'cookie',
-            name: 'refreshToken',
-          },
-        },
-      },
     },
-    apis: [path.resolve(__dirname, '..', 'routes', '**', '*.js')],
+    apis: [
+      path.resolve(__dirname, '..', 'routes', '*.js'),
+      path.resolve(__dirname, '..', 'routes', '**', '*.js'),
+    ],
   });
 
-const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
-  const baseSpec = {
+  const basePaths = buildPaths(endpoints);
+  const mergedPaths = mergePaths(basePaths, annotatedSpec.paths);
+  const annotatedSchemas = annotatedSpec.components?.schemas ?? {};
+
+  return {
     openapi: '3.0.3',
     info: {
       title: 'LibreChat API',
       version: packageJson.version,
       description:
         'Auto-generated OpenAPI document derived from the Express route table. ' +
-        'Operation details should be refined with route-level annotations over time.',
+        'Operation details are enriched with route-level annotations.',
     },
     servers: serverUrl ? [{ url: serverUrl }] : undefined,
     tags: apiTags,
@@ -162,34 +122,10 @@ const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
           scheme: 'bearer',
           bearerFormat: 'JWT',
         },
-        cookieAuth: {
-          type: 'apiKey',
-          in: 'cookie',
-          name: 'refreshToken',
-        },
       },
+      schemas: annotatedSchemas,
     },
-    paths: buildPaths(endpoints),
-  };
-
-  const jsdocSpec = buildJSDocSpec({ serverUrl });
-
-  return {
-    ...baseSpec,
-    ...jsdocSpec,
-    components: {
-      ...baseSpec.components,
-      ...jsdocSpec.components,
-      schemas: {
-        ...(baseSpec.components?.schemas || {}),
-        ...(jsdocSpec.components?.schemas || {}),
-      },
-      securitySchemes: {
-        ...(baseSpec.components?.securitySchemes || {}),
-        ...(jsdocSpec.components?.securitySchemes || {}),
-      },
-    },
-    paths: mergePathSpecs(baseSpec.paths, jsdocSpec.paths || {}),
+    paths: mergedPaths,
   };
 };
 
