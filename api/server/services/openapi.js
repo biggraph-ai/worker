@@ -80,7 +80,7 @@ const buildPaths = (endpoints) =>
               description: 'OK',
             },
           },
-          security: [{ bearerAuth: [] }],
+          security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         },
       };
     }, {});
@@ -132,6 +132,11 @@ const buildJSDocSpec = ({ serverUrl }) =>
             scheme: 'bearer',
             bearerFormat: 'JWT',
           },
+          cookieAuth: {
+            type: 'apiKey',
+            in: 'cookie',
+            name: 'refreshToken',
+          },
         },
       },
     },
@@ -156,6 +161,11 @@ const buildOpenApiSpec = ({ serverUrl, endpoints }) => {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
+        },
+        cookieAuth: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'refreshToken',
         },
       },
     },
